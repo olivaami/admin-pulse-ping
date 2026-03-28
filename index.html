@@ -327,18 +327,22 @@
 // 🔧 PASTE YOUR FIREBASE CONFIG HERE
 // Go to: Firebase Console → Project Settings → Your apps → SDK setup
 // ============================================================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 
-const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+const firebaseConfig = {
+  apiKey: "AIzaSyDhawfWUerW8-wiMZKMlU8rs3mSisJiS5E",
+  authDomain: "ecg-result.firebaseapp.com",
+  projectId: "ecg-result",
+  storageBucket: "ecg-result.firebasestorage.app",
+  messagingSenderId: "293139984564",
+  appId: "1:293139984564:web:fed1018858fb9b2938e7e1",
+  measurementId: "G-EBPVJ45693"
 };
+
+  // Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 // ============================================================
 
 const CHANNEL_ID  = '3290555';
@@ -361,7 +365,7 @@ let unsubscribe = null;
 // =====================
 function initFirebase() {
   try {
-    if (FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY') return;
+    if (FIREBASE_CONFIG.apiKey === 'AIzaSyDhawfWUerW8-wiMZKMlU8rs3mSisJiS5E') return;
     const app = initializeApp(FIREBASE_CONFIG);
     db = getFirestore(app);
     firebaseReady = true;
