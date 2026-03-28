@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECG Monitor — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --border: #e8e8e4;
+    --text: #1a1a1a;
+    --muted: #888880;
+    --accent: #2563eb;
+    --green: #16a34a;
+    --red: #dc2626;
+    --amber: #d97706;
+    --tag-bg: #f0f0ec;
+    --manual-row: #fffbeb;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  header { background: #1a1a1a; border-bottom: 2px solid #333; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 10; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; }
+  .logo-text { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; color: #fff; }
+  .logo-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: #666; font-weight: 300; }
+  .admin-badge { background: var(--amber); color: white; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.8px; font-family: 'DM Mono', monospace; }
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  .refresh-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; background: #333; color: white; border: none; border-radius: 8px; font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .refresh-btn:hover { background: #444; }
+  .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .add-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--amber); color: white; border: none; border-radius: 8px; font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
+  .add-btn:hover { opacity: 0.85; }
+  .last-updated { font-family: 'DM Mono', monospace; font-size: 11px; color: #555; }
+
+  /* FIREBASE BANNER */
+  .firebase-banner { background: #fff8f0; border-bottom: 1px solid #fed7aa; padding: 10px 40px; font-size: 13px; color: #92400e; display: flex; align-items: center; gap: 10px; }
+  .firebase-banner.connected { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .firebase-banner b { font-weight: 600; }
+
+  /* MAIN */
+  main { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+  .page-title { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 4px; }
+  .page-sub { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+
+  /* STATS */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; margin-bottom: 8px; }
+  .stat-value { font-family: 'DM Mono', monospace; font-size: 26px; font-weight: 500; letter-spacing: -1px; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.blue { color: var(--accent); }
+  .stat-value.amber { color: var(--amber); }
+
+  /* CONTROLS */
+  .controls { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-label { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .device-filters { display: flex; gap: 8px; }
+  .device-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.15s; color: var(--muted); font-weight: 500; }
+  .device-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .device-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+  .results-count { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); }
+
+  /* TABLE */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--tag-bg); border-bottom: 1px solid var(--border); }
+  th { text-align: left; padding: 12px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr.data-row { cursor: pointer; transition: background 0.1s; }
+  tr.data-row:hover td { background: #f5f5f3; }
+  tr.manual-row td { background: var(--manual-row); }
+  tr.manual-row:hover td { background: #fef9c3; }
+  .td-mono { font-family: 'DM Mono', monospace; font-size: 13px; }
+  .td-bpm { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; }
+  .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .status-badge.normal { background: #dcfce7; color: #166534; }
+  .status-badge.brady  { background: #dbeafe; color: #1e40af; }
+  .status-badge.tachy  { background: #fee2e2; color: #991b1b; }
+  .status-badge.unknown{ background: var(--tag-bg); color: var(--muted); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .device-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--tag-bg); font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); font-weight: 500; }
+  .manual-tag { display: inline-block; padding: 2px 7px; border-radius: 4px; background: #fde68a; font-family: 'DM Mono', monospace; font-size: 10px; color: #92400e; font-weight: 700; letter-spacing: 0.3px; margin-left: 5px; }
+  .ts-tag { display: inline-block; padding: 2px 7px; border-radius: 4px; background: #e0f2fe; font-family: 'DM Mono', monospace; font-size: 10px; color: #075985; font-weight: 700; margin-left: 5px; }
+  .action-btns { display: flex; gap: 6px; align-items: center; }
+  .edit-btn { background: none; border: 1px solid var(--border); cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 10px; border-radius: 6px; transition: all 0.15s; font-family: 'DM Sans', sans-serif; font-weight: 500; white-space: nowrap; }
+  .edit-btn:hover { background: #eff6ff; color: var(--accent); border-color: var(--accent); }
+  .delete-btn { background: none; border: 1px solid var(--border); cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 10px; border-radius: 6px; transition: all 0.15s; font-family: 'DM Sans', sans-serif; font-weight: 500; white-space: nowrap; }
+  .delete-btn:hover { background: #fee2e2; color: var(--red); border-color: #fecaca; }
+
+  /* EMPTY / LOADING */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-icon { font-size: 36px; margin-bottom: 12px; }
+  .empty-text { font-size: 15px; font-weight: 500; margin-bottom: 4px; color: var(--text); }
+  .empty-sub { font-size: 13px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+  .spinner-dark { display: inline-block; width: 14px; height: 14px; border: 2px solid #e0e0e0; border-top-color: #555; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* MODALS */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--surface); border-radius: 16px; width: 90%; max-width: 520px; overflow: hidden; transform: translateY(16px) scale(0.98); transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1); box-shadow: 0 24px 60px rgba(0,0,0,0.2); }
+  .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+  .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; }
+  .modal-title { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 4px; }
+  .modal-meta { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .modal-close { width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--tag-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--muted); transition: all 0.15s; flex-shrink: 0; }
+  .modal-close:hover { background: var(--border); color: var(--text); }
+  .modal-body { padding: 24px; }
+
+  /* FORM */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-family: 'DM Mono', monospace; }
+  .form-input, .form-select { padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--surface); transition: border-color 0.15s; outline: none; width: 100%; }
+  .form-input:focus, .form-select:focus { border-color: var(--accent); }
+  .form-input::placeholder { color: #c0c0ba; }
+  .form-hint { font-size: 11px; color: var(--muted); }
+  .form-actions { display: flex; gap: 10px; }
+  .form-submit-btn { flex: 1; padding: 11px; background: var(--text); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+  .form-submit-btn:hover { opacity: 0.85; }
+  .form-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .form-cancel-btn { padding: 11px 20px; background: none; color: var(--muted); border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; transition: background 0.15s; }
+  .form-cancel-btn:hover { background: var(--tag-bg); }
+
+  /* CONFIRM */
+  .confirm-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .confirm-desc { font-size: 14px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+  .confirm-actions { display: flex; gap: 10px; }
+  .confirm-delete-btn { flex: 1; padding: 10px; background: var(--red); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+  .confirm-delete-btn:hover { opacity: 0.85; }
+  .confirm-cancel-btn { flex: 1; padding: 10px; background: none; color: var(--muted); border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; transition: background 0.15s; }
+  .confirm-cancel-btn:hover { background: var(--tag-bg); }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1a1a1a; color: white; padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; z-index: 999; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 700px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    header { padding: 12px 16px; height: auto; flex-wrap: wrap; gap: 8px; }
+    main { padding: 24px 16px; }
+    .form-grid { grid-template-columns: 1fr; }
+    th:nth-child(2), td:nth-child(2) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg class="logo-icon" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="8" fill="#333"/>
+      <polyline points="2,16 7,16 9,10 11,22 13,14 15,18 17,8 19,24 21,16 30,16"
+                stroke="#f59e0b" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+      <div class="logo-text">ECG Monitor <span class="admin-badge">ADMIN</span></div>
+      <div class="logo-sub">ThingSpeak · CH 3290555</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">—</span>
+    <button class="add-btn" onclick="openAddModal()">+ Add Entry</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadData()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
+</header>
+
+<div class="firebase-banner" id="firebaseBanner">
+  ⚙️ <b>Firebase not configured.</b> Open this file and fill in your Firebase config at the top of the &lt;script&gt; to enable add/edit/delete across both sites.
+</div>
+
+<main>
+  <div class="page-title">Admin Panel</div>
+  <p class="page-sub">Manage all ECG entries. Changes here appear on the Display site instantly.</p>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Total Entries</div>
+      <div class="stat-value blue" id="statTotal">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">ThingSpeak</div>
+      <div class="stat-value" id="statTS">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Manual / Edited</div>
+      <div class="stat-value amber" id="statManual">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Latest BPM</div>
+      <div class="stat-value green" id="statBPM">—</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <span class="filter-label">Device:</span>
+    <div class="device-filters">
+      <button class="device-btn active" onclick="setFilter('all', this)">All</button>
+      <button class="device-btn" onclick="setFilter('1', this)">Prototype 1</button>
+      <button class="device-btn" onclick="setFilter('2', this)">Prototype 2</button>
+      <button class="device-btn" onclick="setFilter('3', this)">Prototype 3</button>
+    </div>
+    <span class="results-count" id="resultsCount"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Timestamp</th>
+          <th>Device</th>
+          <th>BPM</th>
+          <th>QRS (ms)</th>
+          <th>Status</th>
+          <th>Source</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="8">
+          <div class="empty-state">
+            <div class="empty-icon">📡</div>
+            <div class="empty-text">Loading data...</div>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- ADD / EDIT MODAL -->
+<div class="modal-overlay" id="formOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="formModalTitle">Add Entry</div>
+        <div class="modal-meta" id="formModalMeta">Saved to Firebase · visible on Display site</div>
+      </div>
+      <button class="modal-close" onclick="closeFormModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">BPM *</label>
+          <input class="form-input" type="number" id="formBPM" placeholder="e.g. 78" min="20" max="250">
+        </div>
+        <div class="form-group">
+          <label class="form-label">QRS (ms) *</label>
+          <input class="form-input" type="number" id="formQRS" placeholder="e.g. 100" min="40" max="300">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status *</label>
+          <select class="form-select" id="formStatus">
+            <option value="">— Select —</option>
+            <option value="2">Sinus Rhythm (Normal)</option>
+            <option value="1">Sinus Bradycardia (&lt;60 bpm)</option>
+            <option value="3">Sinus Tachycardia (&gt;100 bpm)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prototype *</label>
+          <select class="form-select" id="formDevice">
+            <option value="1">Prototype 1</option>
+            <option value="2">Prototype 2</option>
+            <option value="3">Prototype 3</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Batch / Respondent</label>
+          <input class="form-input" type="text" id="formBatch" placeholder="e.g. Batch 1, R-03">
+          <span class="form-hint">Optional label (admin only)</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date & Time *</label>
+          <input class="form-input" type="datetime-local" id="formTimestamp">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="form-cancel-btn" onclick="closeFormModal()">Cancel</button>
+        <button class="form-submit-btn" id="formSubmitBtn" onclick="submitEntry()">Save Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="modal-overlay" id="confirmOverlay">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Delete Entry</div>
+        <div class="modal-meta">This cannot be undone</div>
+      </div>
+      <button class="modal-close" onclick="closeConfirmModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="confirm-title">Remove this entry?</div>
+      <div class="confirm-desc" id="confirmDesc">—</div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel-btn" onclick="closeConfirmModal()">Keep it</button>
+        <button class="confirm-delete-btn" onclick="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+// ============================================================
+// 🔧 PASTE YOUR FIREBASE CONFIG HERE
+// Go to: Firebase Console → Project Settings → Your apps → SDK setup
+// ============================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const FIREBASE_CONFIG = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+// ============================================================
+
+const CHANNEL_ID  = '3290555';
+const READ_KEY    = 'TE24GTY3DXKWKAAZ';
+const MAX_RESULTS = 100;
+const COLLECTION  = 'ecg_entries';
+
+let db = null;
+let firebaseReady = false;
+let tsFeeds = [];
+let manualEntries = [];
+let activeFilter = 'all';
+let editingId = null;
+let pendingDeleteId = null;
+let pendingDeleteIsManual = false;
+let unsubscribe = null;
+
+// =====================
+// FIREBASE INIT
+// =====================
+function initFirebase() {
+  try {
+    if (FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY') return;
+    const app = initializeApp(FIREBASE_CONFIG);
+    db = getFirestore(app);
+    firebaseReady = true;
+    document.getElementById('firebaseBanner').className = 'firebase-banner connected';
+    document.getElementById('firebaseBanner').innerHTML = '✅ <b>Firebase connected.</b> Add/edit/delete is live. Changes appear on the Display site instantly.';
+    subscribeManual();
+  } catch(e) {
+    console.error('Firebase init error:', e);
+  }
+}
+
+function subscribeManual() {
+  if (!db) return;
+  if (unsubscribe) unsubscribe();
+  unsubscribe = onSnapshot(collection(db, COLLECTION), (snap) => {
+    manualEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTable();
+    updateStats();
+  });
+}
+
+// =====================
+// THINGSPEAK
+// =====================
+async function loadData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>&nbsp;Loading';
+
+  try {
+    const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=${MAX_RESULTS}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    tsFeeds = (data.feeds || []).filter(f => f.field1 && parseFloat(f.field1) > 0);
+    renderTable();
+    updateStats();
+    const now = new Date();
+    document.getElementById('lastUpdated').textContent =
+      'Updated ' + now.toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  } catch(e) {
+    showToast('⚠️ Failed to load ThingSpeak data');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+    <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+  </svg> Refresh`;
+}
+
+// =====================
+// TABLE
+// =====================
+const STATUS_MAP = {
+  '1': { label: 'Sinus Bradycardia', cls: 'brady' },
+  '2': { label: 'Sinus Rhythm',      cls: 'normal' },
+  '3': { label: 'Sinus Tachycardia', cls: 'tachy' },
+};
+
+function statusBadge(code) {
+  const s = STATUS_MAP[String(Math.round(parseFloat(code)))];
+  if (!s) return `<span class="status-badge unknown">Unknown</span>`;
+  return `<span class="status-badge ${s.cls}"><span class="dot"></span>${s.label}</span>`;
+}
+
+function formatTimestamp(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' })
+    + ' · '
+    + d.toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
+function setFilter(val, btn) {
+  activeFilter = val;
+  document.querySelectorAll('.device-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function renderTable() {
+  const body = document.getElementById('tableBody');
+
+  const tsNorm = tsFeeds.map(f => ({
+    _type: 'ts',
+    _id: null,
+    created_at: f.created_at,
+    bpm: Math.round(parseFloat(f.field1)) || 0,
+    qrs: Math.round(parseFloat(f.field2)) || 0,
+    status: String(Math.round(parseFloat(f.field3))),
+    device: Math.round(parseFloat(f.field4 || '1')),
+    batch: null,
+    _tsRef: f,
+  }));
+
+  const manNorm = manualEntries.map(e => ({
+    _type: 'manual',
+    _id: e.id,
+    created_at: e.created_at,
+    bpm: Number(e.bpm),
+    qrs: Number(e.qrs),
+    status: String(e.status),
+    device: Number(e.device),
+    batch: e.batch || null,
+    _tsRef: null,
+  }));
+
+  const combined = [...tsNorm, ...manNorm].sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  );
+
+  const filtered = activeFilter === 'all'
+    ? combined
+    : combined.filter(r => String(r.device) === activeFilter);
+
+  document.getElementById('resultsCount').textContent =
+    `${filtered.length} record${filtered.length !== 1 ? 's' : ''}`;
+
+  if (filtered.length === 0) {
+    body.innerHTML = `<tr><td colspan="8"><div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-text">No entries found</div>
+      <div class="empty-sub">Try a different device filter</div>
+    </div></td></tr>`;
+    return;
+  }
+
+  body.innerHTML = filtered.map((r, i) => {
+    const isManual = r._type === 'manual';
+    const num = filtered.length - i;
+    const batchNote = r.batch ? `<span style="font-size:11px;color:#92400e;margin-left:6px">${r.batch}</span>` : '';
+    const sourceTag = isManual
+      ? `<span class="manual-tag">MANUAL</span>`
+      : `<span class="ts-tag">THINGSPEAK</span>`;
+    const actions = isManual
+      ? `<div class="action-btns">
+           <button class="edit-btn" data-id="${r._id}">✏ Edit</button>
+           <button class="delete-btn" data-id="${r._id}" data-manual="1" data-bpm="${r.bpm}" data-ts="${r.created_at}">🗑 Delete</button>
+         </div>`
+      : `<div class="action-btns" style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace">read-only</div>`;
+
+    return `<tr class="data-row ${isManual ? 'manual-row' : ''}"
+        data-id="${isManual ? r._id : ''}"
+        data-type="${r._type}">
+      <td class="td-mono" style="color:var(--muted)">${num}</td>
+      <td class="td-mono" style="font-size:12px">${formatTimestamp(r.created_at)}${batchNote}</td>
+      <td><span class="device-tag">P${r.device}</span></td>
+      <td class="td-bpm">${r.bpm || '—'} <span style="font-size:11px;color:var(--muted);font-weight:400">bpm</span></td>
+      <td class="td-mono">${r.qrs || '—'} <span style="font-size:11px;color:var(--muted)">ms</span></td>
+      <td>${statusBadge(r.status)}</td>
+      <td>${sourceTag}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+// =====================
+// STATS
+// =====================
+function updateStats() {
+  const total = tsFeeds.length + manualEntries.length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statTS').textContent = tsFeeds.length;
+  document.getElementById('statManual').textContent = manualEntries.length;
+
+  const all = [
+    ...tsFeeds.map(f => ({ bpm: parseFloat(f.field1), ts: f.created_at })),
+    ...manualEntries.map(e => ({ bpm: Number(e.bpm), ts: e.created_at })),
+  ].sort((a, b) => new Date(b.ts) - new Date(a.ts));
+
+  if (all.length > 0) {
+    const latest = all[0];
+    const bpm = Math.round(latest.bpm);
+    const el = document.getElementById('statBPM');
+    el.textContent = `${bpm} bpm`;
+    el.className = 'stat-value ' + (bpm < 60 ? 'blue' : bpm > 100 ? 'red' : 'green');
+  }
+}
+
+// =====================
+// DELEGATED EVENTS
+// =====================
+document.getElementById('tableBody').addEventListener('click', function(e) {
+  const editBtn = e.target.closest('.edit-btn');
+  if (editBtn) { e.stopPropagation(); openEditModal(editBtn.dataset.id); return; }
+
+  const delBtn = e.target.closest('.delete-btn');
+  if (delBtn) {
+    e.stopPropagation();
+    promptDelete(delBtn.dataset.id, true, delBtn.dataset.bpm, delBtn.dataset.ts);
+    return;
+  }
+});
+
+// =====================
+// ADD / EDIT MODAL
+// =====================
+function openAddModal() {
+  if (!firebaseReady) {
+    showToast('⚠️ Configure Firebase first to add entries');
+    return;
+  }
+  editingId = null;
+  document.getElementById('formModalTitle').textContent = 'Add Entry';
+  document.getElementById('formModalMeta').textContent = 'Saved to Firebase · visible on Display site';
+  document.getElementById('formSubmitBtn').textContent = 'Save Entry';
+  document.getElementById('formBPM').value = '';
+  document.getElementById('formQRS').value = '';
+  document.getElementById('formStatus').value = '';
+  document.getElementById('formDevice').value = '1';
+  document.getElementById('formBatch').value = '';
+  const now = new Date();
+  document.getElementById('formTimestamp').value =
+    new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  document.getElementById('formOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('formBPM').focus(), 300);
+}
+window.openAddModal = openAddModal;
+
+function openEditModal(id) {
+  if (!firebaseReady) { showToast('⚠️ Firebase not configured'); return; }
+  const entry = manualEntries.find(e => e.id === id);
+  if (!entry) return;
+  editingId = id;
+  document.getElementById('formModalTitle').textContent = 'Edit Entry';
+  document.getElementById('formModalMeta').textContent = 'Changes apply to the Display site immediately';
+  document.getElementById('formSubmitBtn').textContent = 'Save Changes';
+  document.getElementById('formBPM').value = entry.bpm;
+  document.getElementById('formQRS').value = entry.qrs;
+  document.getElementById('formStatus').value = entry.status;
+  document.getElementById('formDevice').value = entry.device;
+  document.getElementById('formBatch').value = entry.batch || '';
+  const d = new Date(entry.created_at);
+  document.getElementById('formTimestamp').value =
+    new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  document.getElementById('formOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFormModal() {
+  document.getElementById('formOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  editingId = null;
+}
+window.closeFormModal = closeFormModal;
+
+async function submitEntry() {
+  const bpm    = parseInt(document.getElementById('formBPM').value);
+  const qrs    = parseInt(document.getElementById('formQRS').value);
+  const status = document.getElementById('formStatus').value;
+  const device = document.getElementById('formDevice').value;
+  const batch  = document.getElementById('formBatch').value.trim();
+  const tsRaw  = document.getElementById('formTimestamp').value;
+
+  if (!bpm || bpm < 20 || bpm > 250) { showToast('⚠️ Enter a valid BPM (20–250)'); return; }
+  if (!qrs || qrs < 40 || qrs > 300) { showToast('⚠️ Enter a valid QRS (40–300 ms)'); return; }
+  if (!status) { showToast('⚠️ Please select a status'); return; }
+  if (!tsRaw)  { showToast('⚠️ Please enter a date & time'); return; }
+
+  const btn = document.getElementById('formSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  const payload = {
+    bpm, qrs, status, device: parseInt(device),
+    batch: batch || null,
+    created_at: new Date(tsRaw).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    if (editingId) {
+      await updateDoc(doc(db, COLLECTION, editingId), payload);
+      showToast('✅ Entry updated');
+    } else {
+      await addDoc(collection(db, COLLECTION), payload);
+      showToast('✅ Entry added');
+    }
+    closeFormModal();
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Firebase error: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = editingId ? 'Save Changes' : 'Save Entry';
+}
+window.submitEntry = submitEntry;
+
+// =====================
+// DELETE
+// =====================
+function promptDelete(id, isManual, bpm, ts) {
+  pendingDeleteId = id;
+  pendingDeleteIsManual = isManual;
+  const dt = ts ? new Date(ts).toLocaleString('en-PH') : '—';
+  document.getElementById('confirmDesc').textContent = `${bpm} bpm · ${dt}`;
+  document.getElementById('confirmOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  pendingDeleteId = null;
+}
+window.closeConfirmModal = closeConfirmModal;
+
+async function confirmDelete() {
+  if (!pendingDeleteId || !db) return;
+  try {
+    await deleteDoc(doc(db, COLLECTION, pendingDeleteId));
+    showToast('🗑 Entry deleted');
+    closeConfirmModal();
+  } catch(e) {
+    showToast('❌ Delete failed: ' + e.message);
+  }
+}
+window.confirmDelete = confirmDelete;
+
+// =====================
+// TOAST
+// =====================
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+// =====================
+// ESCAPE KEY
+// =====================
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeFormModal(); closeConfirmModal(); }
+});
+
+// =====================
+// OVERLAY CLICKS
+// =====================
+document.getElementById('formOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('formOverlay')) closeFormModal();
+});
+document.getElementById('confirmOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('confirmOverlay')) closeConfirmModal();
+});
+
+// =====================
+// INIT
+// =====================
+initFirebase();
+loadData();
+
+let countdown = 30;
+setInterval(() => {
+  countdown--;
+  if (countdown <= 0) { countdown = 30; loadData(); }
+  else {
+    const el = document.getElementById('lastUpdated');
+    const base = el.textContent.split(' ·')[0];
+    el.textContent = base + ' · refresh in ' + countdown + 's';
+  }
+}, 1000);
+</script>
+</body>
+</html>
