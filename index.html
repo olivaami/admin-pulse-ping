@@ -330,7 +330,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDhawfWUerW8-wiMZKMlU8rs3mSisJiS5E",
   authDomain: "ecg-result.firebaseapp.com",
   projectId: "ecg-result",
@@ -341,7 +341,7 @@ const firebaseConfig = {
 };
 
   // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(FIREBASE_CONFIG);
 const analytics = getAnalytics(app);
 // ============================================================
 
