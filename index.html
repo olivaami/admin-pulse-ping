@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pulse Ping- Admin</title>
+<title>Pulse Ping — Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -353,6 +353,7 @@ let tsFeeds = [];
 let manualEntries = [];
 let activeFilter = 'all';
 let editingId = null;
+let editingTSKey = null;
 let pendingDeleteId = null;
 let pendingDeleteIsManual = false;
 let unsubscribe = null;
@@ -443,29 +444,39 @@ function setFilter(val, btn) {
 function renderTable() {
   const body = document.getElementById('tableBody');
 
-  const tsNorm = tsFeeds.map(f => ({
-    _type: 'ts',
-    _id: null,
-    created_at: f.created_at,
-    bpm: Math.round(parseFloat(f.field1)) || 0,
-    qrs: Math.round(parseFloat(f.field2)) || 0,
-    status: String(Math.round(parseFloat(f.field3))),
-    device: Math.round(parseFloat(f.field4 || '1')),
-    batch: null,
-    _tsRef: f,
-  }));
+  // Build sets for quick lookup
+  const overriddenKeys = new Set(manualEntries.filter(e => e.ts_override_key).map(e => e.ts_override_key));
+  const hiddenKeys     = new Set(manualEntries.filter(e => e.ts_hidden_key).map(e => e.ts_hidden_key));
 
-  const manNorm = manualEntries.map(e => ({
-    _type: 'manual',
-    _id: e.id,
-    created_at: e.created_at,
-    bpm: Number(e.bpm),
-    qrs: Number(e.qrs),
-    status: String(e.status),
-    device: Number(e.device),
-    batch: e.batch || null,
-    _tsRef: null,
-  }));
+  // TS rows — skip ones that have been overridden or hidden
+  const tsNorm = tsFeeds
+    .filter(f => !overriddenKeys.has(f.created_at) && !hiddenKeys.has(f.created_at))
+    .map(f => ({
+      _type: 'ts',
+      _id: null,
+      created_at: f.created_at,
+      bpm: Math.round(parseFloat(f.field1)) || 0,
+      qrs: Math.round(parseFloat(f.field2)) || 0,
+      status: String(Math.round(parseFloat(f.field3))),
+      device: Math.round(parseFloat(f.field4 || '1')),
+      batch: null,
+      _tsKey: f.created_at,
+    }));
+
+  // Firebase entries — skip hidden markers (they're just suppression flags, not display rows)
+  const manNorm = manualEntries
+    .filter(e => !e.ts_hidden_key)
+    .map(e => ({
+      _type: e.ts_override_key ? 'override' : 'manual',
+      _id: e.id,
+      created_at: e.created_at,
+      bpm: Number(e.bpm),
+      qrs: Number(e.qrs),
+      status: String(e.status),
+      device: Number(e.device),
+      batch: e.batch || null,
+      _tsKey: null,
+    }));
 
   const combined = [...tsNorm, ...manNorm].sort(
     (a, b) => new Date(b.created_at) - new Date(a.created_at)
@@ -488,22 +499,33 @@ function renderTable() {
   }
 
   body.innerHTML = filtered.map((r, i) => {
-    const isManual = r._type === 'manual';
     const num = filtered.length - i;
     const batchNote = r.batch ? `<span style="font-size:11px;color:#92400e;margin-left:6px">${r.batch}</span>` : '';
-    const sourceTag = isManual
-      ? `<span class="manual-tag">MANUAL</span>`
-      : `<span class="ts-tag">THINGSPEAK</span>`;
-    const actions = isManual
-      ? `<div class="action-btns">
-           <button class="edit-btn" data-id="${r._id}">✏ Edit</button>
-           <button class="delete-btn" data-id="${r._id}" data-manual="1" data-bpm="${r.bpm}" data-ts="${r.created_at}">🗑 Delete</button>
-         </div>`
-      : `<div class="action-btns" style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace">read-only</div>`;
 
-    return `<tr class="data-row ${isManual ? 'manual-row' : ''}"
-        data-id="${isManual ? r._id : ''}"
-        data-type="${r._type}">
+    let sourceTag, actions, rowClass = '';
+    if (r._type === 'ts') {
+      sourceTag = `<span class="ts-tag">THINGSPEAK</span>`;
+      actions = `<div class="action-btns">
+        <button class="edit-btn" data-ts-key="${r._tsKey}" data-bpm="${r.bpm}" data-qrs="${r.qrs}" data-status="${r.status}" data-device="${r.device}" data-created="${r.created_at}">✏ Edit</button>
+        <button class="delete-btn" data-ts-key="${r._tsKey}" data-bpm="${r.bpm}" data-ts="${r.created_at}">🗑 Hide</button>
+      </div>`;
+    } else if (r._type === 'override') {
+      rowClass = 'manual-row';
+      sourceTag = `<span class="manual-tag">EDITED</span>`;
+      actions = `<div class="action-btns">
+        <button class="edit-btn" data-id="${r._id}">✏ Edit</button>
+        <button class="delete-btn" data-id="${r._id}" data-bpm="${r.bpm}" data-ts="${r.created_at}">🗑 Delete</button>
+      </div>`;
+    } else {
+      rowClass = 'manual-row';
+      sourceTag = `<span class="manual-tag">MANUAL</span>`;
+      actions = `<div class="action-btns">
+        <button class="edit-btn" data-id="${r._id}">✏ Edit</button>
+        <button class="delete-btn" data-id="${r._id}" data-bpm="${r.bpm}" data-ts="${r.created_at}">🗑 Delete</button>
+      </div>`;
+    }
+
+    return `<tr class="data-row ${rowClass}" data-id="${r._id || ''}" data-type="${r._type}">
       <td class="td-mono" style="color:var(--muted)">${num}</td>
       <td class="td-mono" style="font-size:12px">${formatTimestamp(r.created_at)}${batchNote}</td>
       <td><span class="device-tag">P${r.device}</span></td>
@@ -544,12 +566,24 @@ function updateStats() {
 // =====================
 document.getElementById('tableBody').addEventListener('click', function(e) {
   const editBtn = e.target.closest('.edit-btn');
-  if (editBtn) { e.stopPropagation(); openEditModal(editBtn.dataset.id); return; }
+  if (editBtn) {
+    e.stopPropagation();
+    if (editBtn.dataset.id) {
+      openEditModal(editBtn.dataset.id);           // Firebase entry
+    } else if (editBtn.dataset.tsKey) {
+      openTSEditModal(editBtn);                    // ThingSpeak entry
+    }
+    return;
+  }
 
   const delBtn = e.target.closest('.delete-btn');
   if (delBtn) {
     e.stopPropagation();
-    promptDelete(delBtn.dataset.id, true, delBtn.dataset.bpm, delBtn.dataset.ts);
+    if (delBtn.dataset.id) {
+      promptDelete(delBtn.dataset.id, false, delBtn.dataset.bpm, delBtn.dataset.ts);  // Firebase entry
+    } else if (delBtn.dataset.tsKey) {
+      promptHideTS(delBtn.dataset.tsKey, delBtn.dataset.bpm, delBtn.dataset.ts);      // ThingSpeak hide
+    }
     return;
   }
 });
@@ -600,10 +634,35 @@ function openEditModal(id) {
   document.body.style.overflow = 'hidden';
 }
 
+// Open edit form pre-filled from a ThingSpeak row
+function openTSEditModal(btn) {
+  if (!firebaseReady) { showToast('⚠️ Firebase not configured'); return; }
+  editingId = null;
+  editingTSKey = btn.dataset.tsKey;  // original TS timestamp used as override key
+
+  document.getElementById('formModalTitle').textContent = 'Edit ThingSpeak Entry';
+  document.getElementById('formModalMeta').textContent = 'Saves an override to Firebase · original TS row will be replaced';
+  document.getElementById('formSubmitBtn').textContent = 'Save Override';
+
+  document.getElementById('formBPM').value    = btn.dataset.bpm;
+  document.getElementById('formQRS').value    = btn.dataset.qrs;
+  document.getElementById('formStatus').value = btn.dataset.status;
+  document.getElementById('formDevice').value = btn.dataset.device;
+  document.getElementById('formBatch').value  = '';
+
+  const d = new Date(btn.dataset.created);
+  document.getElementById('formTimestamp').value =
+    new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+  document.getElementById('formOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('formBPM').focus(), 300);
+}
 function closeFormModal() {
   document.getElementById('formOverlay').classList.remove('open');
   document.body.style.overflow = '';
   editingId = null;
+  editingTSKey = null;
 }
 window.closeFormModal = closeFormModal;
 
@@ -632,7 +691,12 @@ async function submitEntry() {
   };
 
   try {
-    if (editingId) {
+    if (editingTSKey) {
+      // Save as override — suppresses the original TS row on both sites
+      payload.ts_override_key = editingTSKey;
+      await addDoc(collection(db, COLLECTION), payload);
+      showToast('✅ ThingSpeak entry overridden');
+    } else if (editingId) {
       await updateDoc(doc(db, COLLECTION, editingId), payload);
       showToast('✅ Entry updated');
     } else {
@@ -646,16 +710,30 @@ async function submitEntry() {
   }
 
   btn.disabled = false;
-  btn.textContent = editingId ? 'Save Changes' : 'Save Entry';
+  btn.textContent = 'Save';
 }
 window.submitEntry = submitEntry;
 
 // =====================
-// DELETE
+// HIDE THINGSPEAK ROW
+// =====================
+let pendingHideTSKey = null;
+
+function promptHideTS(tsKey, bpm, ts) {
+  pendingHideTSKey = tsKey;
+  const dt = ts ? new Date(ts).toLocaleString('en-PH') : '—';
+  document.getElementById('confirmDesc').textContent =
+    `${bpm} bpm · ${dt}\n\nThis hides the row on both sites. It won't delete it from ThingSpeak.`;
+  document.getElementById('confirmOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+// =====================
+// DELETE / HIDE
 // =====================
 function promptDelete(id, isManual, bpm, ts) {
   pendingDeleteId = id;
-  pendingDeleteIsManual = isManual;
+  pendingHideTSKey = null;
   const dt = ts ? new Date(ts).toLocaleString('en-PH') : '—';
   document.getElementById('confirmDesc').textContent = `${bpm} bpm · ${dt}`;
   document.getElementById('confirmOverlay').classList.add('open');
@@ -666,17 +744,28 @@ function closeConfirmModal() {
   document.getElementById('confirmOverlay').classList.remove('open');
   document.body.style.overflow = '';
   pendingDeleteId = null;
+  pendingHideTSKey = null;
 }
 window.closeConfirmModal = closeConfirmModal;
 
 async function confirmDelete() {
-  if (!pendingDeleteId || !db) return;
+  if (!db) return;
   try {
-    await deleteDoc(doc(db, COLLECTION, pendingDeleteId));
-    showToast('🗑 Entry deleted');
+    if (pendingHideTSKey) {
+      // Store a hidden-marker doc in Firebase so both sites suppress this TS row
+      await addDoc(collection(db, COLLECTION), {
+        ts_hidden_key: pendingHideTSKey,
+        created_at: pendingHideTSKey,
+        hiddenAt: new Date().toISOString(),
+      });
+      showToast('👁 ThingSpeak row hidden on both sites');
+    } else if (pendingDeleteId) {
+      await deleteDoc(doc(db, COLLECTION, pendingDeleteId));
+      showToast('🗑 Entry deleted');
+    }
     closeConfirmModal();
   } catch(e) {
-    showToast('❌ Delete failed: ' + e.message);
+    showToast('❌ Error: ' + e.message);
   }
 }
 window.confirmDelete = confirmDelete;
