@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ECG Monitor — Admin</title>
+<title>Pulse Ping- Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -163,7 +163,7 @@
                 stroke="#f59e0b" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     <div>
-      <div class="logo-text">ECG Monitor <span class="admin-badge">ADMIN</span></div>
+      <div class="logo-text">Pulse Ping <span class="admin-badge">ADMIN</span></div>
       <div class="logo-sub">ThingSpeak · CH 3290555</div>
     </div>
   </div>
@@ -327,22 +327,19 @@
 // 🔧 PASTE YOUR FIREBASE CONFIG HERE
 // Go to: Firebase Console → Project Settings → Your apps → SDK setup
 // ============================================================
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDhawfWUerW8-wiMZKMlU8rs3mSisJiS5E",
-  authDomain: "ecg-result.firebaseapp.com",
-  projectId: "ecg-result",
-  storageBucket: "ecg-result.firebasestorage.app",
+  apiKey:            "AIzaSyDhawfWUerW8-wiMZKMlU8rs3mSisJiS5E",
+  authDomain:        "ecg-result.firebaseapp.com",
+  projectId:         "ecg-result",
+  storageBucket:     "ecg-result.firebasestorage.app",
   messagingSenderId: "293139984564",
-  appId: "1:293139984564:web:fed1018858fb9b2938e7e1",
-  measurementId: "G-EBPVJ45693"
+  appId:             "1:293139984564:web:fed1018858fb9b2938e7e1",
+  measurementId:     "G-EBPVJ45693"
 };
-
-  // Initialize Firebase
-const app = initializeApp(FIREBASE_CONFIG);
-const analytics = getAnalytics(app);
 // ============================================================
 
 const CHANNEL_ID  = '3290555';
@@ -365,8 +362,7 @@ let unsubscribe = null;
 // =====================
 function initFirebase() {
   try {
-    if (FIREBASE_CONFIG.apiKey === 'AIzaSyDhawfWUerW8-wiMZKMlU8rs3mSisJiS5E') return;
-    const app = initializeApp(FIREBASE_CONFIG);
+    if (FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY') return;    const app = initializeApp(FIREBASE_CONFIG);
     db = getFirestore(app);
     firebaseReady = true;
     document.getElementById('firebaseBanner').className = 'firebase-banner connected';
